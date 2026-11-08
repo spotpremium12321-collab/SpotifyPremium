@@ -3,6 +3,7 @@
 #import "SGRLyricsShaderPolicy.h"
 #import "Core/SGLog.h"
 #import <MetalKit/MetalKit.h>
+#import <CoreText/CoreText.h>
 #import <QuartzCore/CAMetalLayer.h>
 #import <simd/simd.h>
 
@@ -70,6 +71,41 @@ static void drawGlyph(UILabel *source) {
     [copy drawTextInRect:copy.bounds];
 }
 
+static UIBezierPath *glyphShadow(UILabel *label) {
+    NSMutableAttributedString *text = [[NSMutableAttributedString alloc] initWithString:label.text ?: @""
+        attributes:@{NSFontAttributeName:label.font}];
+    [label.attributedText enumerateAttributesInRange:NSMakeRange(0, label.attributedText.length) options:0
+        usingBlock:^(NSDictionary *attributes, NSRange range, BOOL *stop) { [text addAttributes:attributes range:range]; }];
+    CTLineRef line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)text);
+    CGFloat ascent = 0, descent = 0;
+    CGFloat width = CTLineGetTypographicBounds(line, &ascent, &descent, NULL);
+    CGRect rect = [label textRectForBounds:label.bounds limitedToNumberOfLines:1];
+    CGFloat x = CGRectGetMinX(rect);
+    if (label.textAlignment == NSTextAlignmentCenter) x += (rect.size.width - width) / 2;
+    else if (label.textAlignment == NSTextAlignmentRight) x += rect.size.width - width;
+    CGFloat baseline = CGRectGetMidY(rect) + (ascent - descent) / 2;
+    CGMutablePathRef outline = CGPathCreateMutable();
+    for (id value in (__bridge NSArray *)CTLineGetGlyphRuns(line)) {
+        CTRunRef run = (__bridge CTRunRef)value;
+        CTFontRef font = (__bridge CTFontRef)((__bridge NSDictionary *)CTRunGetAttributes(run))[(id)kCTFontAttributeName];
+        for (CFIndex i = 0; i < CTRunGetGlyphCount(run); i++) {
+            CGGlyph glyph;
+            CGPoint position;
+            CTRunGetGlyphs(run, CFRangeMake(i, 1), &glyph);
+            CTRunGetPositions(run, CFRangeMake(i, 1), &position);
+            CGPathRef path = CTFontCreatePathForGlyph(font, glyph, NULL);
+            if (!path) continue;
+            CGAffineTransform transform = CGAffineTransformMake(1, 0, 0, -1, x + position.x, baseline - position.y);
+            CGPathAddPath(outline, &transform, path);
+            CGPathRelease(path);
+        }
+    }
+    CFRelease(line);
+    UIBezierPath *path = [UIBezierPath bezierPathWithCGPath:outline];
+    CGPathRelease(outline);
+    return path;
+}
+
 typedef struct { vector_float2 position, uv, field; } SGRLyricsVertex;
 typedef struct { float time, intensity; uint32_t style; float padding; vector_float4 ink; } SGRLyricsUniforms;
 
@@ -86,6 +122,8 @@ typedef struct { float time, intensity; uint32_t style; float padding; vector_fl
     NSArray<UILabel *> *_labels;
     NSArray<UIColor *> *_inks;
     NSArray *_attributed, *_clearAttributed;
+    NSArray<UIBezierPath *> *_shadows;
+    NSArray *_savedShadows;
     NSArray<NSValue *> *_rects;
     id<MTLTexture> _texture;
     id<MTLBuffer> _vertices;
@@ -151,8 +189,11 @@ typedef struct { float time, intensity; uint32_t style; float padding; vector_fl
     if (!atlas.CGImage) return nil;
     NSMutableArray *inks = [NSMutableArray array], *attributed = [NSMutableArray array], *clear = [NSMutableArray array];
     NSMutableArray *rects = [NSMutableArray array];
+    NSMutableArray *shadows = [NSMutableArray array], *savedShadows = [NSMutableArray array];
     for (NSUInteger i = 0; i < labels.count; i++) {
         UILabel *label = labels[i];
+        [shadows addObject:glyphShadow(label)];
+        [savedShadows addObject:label.layer.shadowPath ? [UIBezierPath bezierPathWithCGPath:label.layer.shadowPath] : NSNull.null];
         [inks addObject:label.textColor ?: UIColor.whiteColor];
         [attributed addObject:label.attributedText ?: NSNull.null];
         NSMutableAttributedString *hidden = [label.attributedText mutableCopy];
@@ -172,6 +213,8 @@ typedef struct { float time, intensity; uint32_t style; float padding; vector_fl
     _attributed = attributed;
     _clearAttributed = clear;
     _rects = rects;
+    _shadows = shadows;
+    _savedShadows = savedShadows;
     _style = style;
     _intensity = MIN(1, intensity);
     _speed = MAX(0.35, MIN(2, speed));
@@ -189,8 +232,6 @@ typedef struct { float time, intensity; uint32_t style; float padding; vector_fl
     _surface.frame = CGRectMake(0, -size.height / 2, size.width, size.height * 2);
     _surface.drawableSize = CGSizeMake(ceil(size.width * scale), ceil(size.height * 2 * scale));
     _surface.hidden = YES;
-    _surface.shadowColor = labels.firstObject.layer.shadowColor;
-    _surface.shadowOffset = CGSizeZero;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     [root.layer addSublayer:_surface];
@@ -242,6 +283,8 @@ typedef struct { float time, intensity; uint32_t style; float padding; vector_fl
         id text = visible ? _clearAttributed[i] : _attributed[i];
         if (text != NSNull.null) label.attributedText = text;
         label.textColor = visible ? UIColor.clearColor : _inks[i];
+        id shadow = visible ? _shadows[i] : _savedShadows[i];
+        label.layer.shadowPath = shadow == NSNull.null ? NULL : ((UIBezierPath *)shadow).CGPath;
     }
     [CATransaction commit];
 }
@@ -273,15 +316,10 @@ typedef struct { float time, intensity; uint32_t style; float padding; vector_fl
     SGRLyricsVertex *vertices = _vertices.contents;
     CGSize size = _wordSize, canvas = _surface.bounds.size;
     const vector_float2 corners[] = {{0,0},{0,1},{1,0},{1,0},{0,1},{1,1}};
-    CGFloat glowOpacity = 0, glowRadius = 0;
     memset(vertices, 0, sizeof(SGRLyricsVertex) * 6 * _labels.count);
     for (NSUInteger i = 0; i < _labels.count; i++) {
         UILabel *label = _labels[i];
         if (label.hidden || label.alpha <= 0) continue;
-        if (label != root) {
-            glowOpacity = MAX(glowOpacity, label.layer.shadowOpacity);
-            glowRadius = MAX(glowRadius, label.layer.shadowRadius);
-        }
         CGRect tile = _rects[i].CGRectValue;
         for (NSUInteger j = 0; j < 6; j++) {
             CGPoint local = CGPointMake(CGRectGetMinX(label.bounds) + corners[j].x * label.bounds.size.width,
@@ -294,11 +332,6 @@ typedef struct { float time, intensity; uint32_t style; float padding; vector_fl
             v->uv = (vector_float2){tile.origin.x + corners[j].x * tile.size.width, tile.origin.y + corners[j].y * tile.size.height};
         }
     }
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    _surface.shadowOpacity = glowOpacity;
-    _surface.shadowRadius = glowRadius;
-    [CATransaction commit];
     dispatch_semaphore_t available = _available;
     SGRLyricsShaderSubmission *submission = _submission;
     CAMetalLayer *surface = _surface;
@@ -383,6 +416,12 @@ typedef struct { float time, intensity; uint32_t style; float padding; vector_fl
     _maskCount = _pixels = _surfacePixels = 0;
     _surface = nil;
     _labels = nil;
+    _shadows = nil;
+    _savedShadows = nil;
+    _inks = nil;
+    _attributed = nil;
+    _clearAttributed = nil;
+    _rects = nil;
     _texture = nil;
     _vertices = nil;
     _ready = NO;

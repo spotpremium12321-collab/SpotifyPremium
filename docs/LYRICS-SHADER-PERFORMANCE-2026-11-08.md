@@ -2,6 +2,8 @@
 
 Reported target: iPhone 16e, iOS 27. Reported symptoms: stuttering/delay, flickering or doubled letters, heat/battery use, and crashes/freezes. Investigation completed November 8, 2026. No iPhone 16e was connected, and no matching Spotify crash report was available. The fixes address observed code paths; they do not establish the cause of the reported crashes or verify battery improvement on hardware.
 
+Later the same day, a rectangle/square artifact report prompted a targeted glow follow-up: automatic Metal-surface shadows were replaced with cached glyph-outline shadows. See `HANDOFF.md`, section 8. The measurements below precede that follow-up; the exact device artifact remains unconfirmed in the simulator.
+
 ## Findings and changes
 
 - Metal device creation and per-letter texture uploads could run on the main thread as a word became active. Device/pipeline creation and texture uploads now use a dedicated resource queue. UIKit still rasterizes glyphs on the main thread, into one atlas per word.

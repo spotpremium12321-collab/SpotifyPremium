@@ -137,7 +137,7 @@ The goal of this project phase was to bring **Taurus-New** from its initial base
 ## 4. Current Build & Deliverables
 
 Latest build verified here: November 8, 2026, Taurus 0.60.5 on Spotify 9.1.90.
-The lyrics-shaders performance IPA was built from the current working tree, including the existing changes
+The lyrics shader glow-fix IPA was built from the current working tree, including the existing changes
 from other tasks. Its filename is unique; the mod version was not bumped. Device signing and
 installation were not performed in this task.
 
@@ -146,8 +146,9 @@ installation were not performed in this task.
 | **Compiled Tweak DEB** | `tweak/packages/com.spotipw_0.60.5_iphoneos-arm.deb` | Built & signed |
 | **Downloads Verification** | Injected `SpotifyAudioProbe.dylib` | 100% Verified passed |
 | **Previous Release IPA — Lyrics Shaders** | `out/Taurus-0.60.5-LyricsShaders-20261107-205155-AF5B87A8.ipa` (138,043,022 bytes, SHA-256: `cb56a6d53c8f0ec4a3638ceb8710b6d653023fd22b081a9a8a1c169319860f2b`) | Archive integrity and embedded shader renderer verified; no FLEX; requires signing for device installation |
-| **Latest Release IPA — Lyrics Shader Performance** | `out/Taurus-0.60.5-LyricsShaders-Performance-20261107-235915-0F1FD8E7.ipa` (138,044,821 bytes, SHA-256: `b29fe80e0757effdcd4a8a1636f99297886382f0abd40b78f5f5ecff28b21c9c`) | ZIP integrity, production renderer markers, test-hook exclusion and no FLEX verified; requires signing for device installation |
-| **Release Build Log** | `out/lyrics-shaders-performance-build.log` | Build completed; finished-IPA Downloads verification passed |
+| **Previous Release IPA — Lyrics Shader Performance** | `out/Taurus-0.60.5-LyricsShaders-Performance-20261107-235915-0F1FD8E7.ipa` (138,044,821 bytes, SHA-256: `b29fe80e0757effdcd4a8a1636f99297886382f0abd40b78f5f5ecff28b21c9c`) | ZIP integrity, production renderer markers, test-hook exclusion and no FLEX verified; requires signing for device installation |
+| **Latest Release IPA — Lyrics Shader Glow Fix** | `out/Taurus-0.60.5-LyricsShader-GlowFix-20261108-042228-0E7CCC67.ipa` (138,047,928 bytes, SHA-256: `65795ecdc1a70d3fd287d13abf784ee6f5a96deca02eb63020603123e572861f`) | ZIP integrity, embedded glyph-outline code, no test hooks and no FLEX verified; requires signing for installation |
+| **Release Build Log** | `out/lyrics-shader-artifact/release-build.log` | Build completed; finished-IPA Downloads verification passed |
 | **Previous Release IPA — November 6** | `out/Taurus-0.60.5-Fixes-20261106-230455.ipa` (138,034,696 bytes, SHA-256: `830dd8fe651f8eb5c8c01e945125f6943010056a0f5a8bd4e8d4e69c146455f6`) | Historical build evidence |
 
 ---
@@ -365,3 +366,40 @@ Lyrics shader**, compare all five styles with Classic, and check moving text, pa
 seeking, rapid track changes, rotation, background/foreground, Reduce Motion and Low Power Mode.
 Compare heat and stutter during sustained playback with fixed brightness/background settings.
 If a crash or freeze recurs, capture its timestamp and matching crash report/hang trace.
+
+
+## 8. Lyrics Shader Rectangle/Glow Follow-up (November 8, 2026)
+
+The owner reported rectangle/square artifacts after the shader performance release; they could
+not identify whether these were solid blocks or glow. The earlier performance preview omitted
+glow. A new `glow` preview mode combines strong shadows, moving letters, joined Arabic and a
+feathered karaoke mask. The exact reported device artifact was **not reproduced conclusively**
+in the simulator; do not claim confirmed device resolution.
+
+The likely regression was automatic shadow computation on the new Metal surface (and, for
+whole-word labels, its parent). The renderer now caches Core Text glyph outlines at word
+creation and assigns explicit shadow paths to the original labels while their ink is hidden.
+The Metal surface has no shadow. Each letter retains its own moving glow, and joined text uses
+one shaped outline. Original shadow paths return on pause/fallback/invalidation; cached paths
+are released on cleanup. Non-outline glyphs retain their shader fill without an outline glow.
+This follows Apple's [explicit shadow-path behavior](https://developer.apple.com/documentation/quartzcore/calayer/shadowpath),
+which avoids deriving a shadow from composited layer alpha. The single-atlas/single-draw renderer,
+queue bounds, stale-frame protection and thermal policy remain.
+
+Verification: all five Mac GPU shader checks passed. `bash harness/lyrics-shaders/preview.sh glow`
+passed on the iOS 27 simulator, including explicit glyph paths while ink is hidden, no Metal
+surface shadow, original-shadow restoration, pause/resume, stale-frame rejection, resize fallback
+and memory-warning cleanup. The five styles and Arabic text were visually inspected with glow.
+Layer and whitespace checks passed; the full no-FLEX IPA build and Downloads verification passed.
+The IPA in section 4 was checked for ZIP integrity, embedded outline code and exclusion of test
+hooks. Local screenshots and results are in `out/lyrics-shader-artifact/`.
+
+The separate whole-tweak performance audit was explicitly stopped by the owner. Its seven
+uncommitted test-harness edits under `harness/audio`, `harness/downloads` and `harness/sing` are
+unrelated to this fix and must not be silently included in the shader commit. No hardware
+recording or device installation was performed for this follow-up.
+
+Next: sign/install the **LyricsShader-GlowFix IPA in section 4**, restart Spotify in **Redesigned
+UI on iOS 27**, open **Mod Settings → Lyrics → Adjust → Lyrics shader**, and replay the affected
+track/style. Check moving words and their glow for boxes, then pause/resume and seek. If the box
+persists, an image showing it is needed to distinguish a glow issue from a filled shader artifact.

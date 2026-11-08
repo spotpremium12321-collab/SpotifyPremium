@@ -6,6 +6,8 @@
 
 Use `xcrun simctl get_app_container booted com.taurus.lyricsshaders.harness data` to locate the files. The harness enables `SGR_LYRICS_SHADER_TESTING`; its delay hook is excluded from production builds. To compare an older renderer, set `SHADER_SOURCE` to its `.m` path (with matching headers alongside it) and `SHADER_TEST_FLAGS=-DSGR_LYRICS_SHADER_TESTING=0`; this disables assertions that depend on the new lifecycle behavior. End the preview with `xcrun simctl terminate booted com.taurus.lyricsshaders.harness`.
 
+`bash harness/lyrics-shaders/preview.sh glow` adds strong glyph glow and a feathered karaoke mask to all five styles and joined Arabic text. Inspect it during the first twelve seconds. Assertions verify that the Metal surface has no automatic shadow, the hidden UIKit glyphs retain explicit outline shadows, and fallback restores their original shadow policy. This targets the rectangular-artifact report after the performance change; it does not reproduce every device compositor behavior.
+
 The five Metal fills are independently authored recreations of the visual styles named on Chroma's public lyrics preview (https://chroma.pw/). They are not extracted Chroma shader source and do not load Workshop content.
 
 Device verification still needed: install the release on an iPhone running iOS 26+, enable Redesigned UI, open Mod Settings → Lyrics → Adjust → Lyrics shader, select each style, and play timed lyrics in portrait and landscape. Check the word sweep, letter motion, pause/resume, seeking, changing tracks and Reduce Motion. Classic returns to the original text. A hardware performance/battery comparison is not covered by this harness.

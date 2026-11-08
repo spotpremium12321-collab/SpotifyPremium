@@ -378,7 +378,9 @@ on the UI thread. The existing lyrics display link drives the shaders at up to 6
 in Low Power Mode or fair thermal state and 15 at serious thermal state. Critical thermal state,
 paused/offscreen/inactive lyrics and Reduce Motion keep static text. This does not cap the shared
 lyrics display link. The original ink is hidden only after the first successful shader frame and
-restored on fallback. Generation checks discard stale queued work after pause, seek or invalidation.
+restored on fallback. Cached glyph outlines keep glow on the original letters, including joined text;
+the Metal surface does not cast an automatic shadow. Non-outline glyphs retain their fill without an
+outline glow. Generation checks discard stale queued work after pause, seek or invalidation.
 Glyphs, surfaces, queued uploads and in-flight frames have shared budgets; memory warnings release
 active effects and prevent new allocations for 15 seconds. Allocation and GPU failures retain text.
 Saved effect profiles keep their existing names and format. GPU and simulator checks are in

@@ -63,6 +63,23 @@ void SGLogMessage(NSString *message) { NSLog(@"%@", message); }
     [self.view addSubview:arabic];
     [_roots addObject:arabic];
     [_labels addObject:@[arabic]];
+    if ([NSProcessInfo.processInfo.arguments containsObject:@"glow"]) {
+        for (NSArray<UILabel *> *labels in _labels) for (UILabel *label in labels) {
+            label.layer.shadowColor = UIColor.cyanColor.CGColor;
+            label.layer.shadowOffset = CGSizeZero;
+            label.layer.shadowOpacity = 0.7;
+            label.layer.shadowRadius = 12;
+        }
+        for (UIView *root in _roots) {
+            CAGradientLayer *mask = [CAGradientLayer layer];
+            mask.frame = CGRectInset(root.bounds, 0, -32);
+            mask.startPoint = CGPointMake(0, 0.5);
+            mask.endPoint = CGPointMake(1, 0.5);
+            mask.colors = @[(id)UIColor.blackColor.CGColor, (id)UIColor.blackColor.CGColor, (id)UIColor.clearColor.CGColor];
+            mask.locations = @[@0, @0.8, @1];
+            root.layer.mask = mask;
+        }
+    }
     [self.view addSubview:[self label:@"Metal · live glyph masks" frame:CGRectMake(28,758,340,30) size:16]];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(stop) name:UIApplicationWillResignActiveNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(resume) name:UIApplicationDidBecomeActiveNotification object:nil];
@@ -111,12 +128,19 @@ void SGLogMessage(NSString *message) { NSLog(@"%@", message); }
             require([surface isKindOfClass:CAMetalLayer.class] && !surface.hidden, @"compiled shader must be visible");
 #if SGR_LYRICS_SHADER_TESTING
             NSUInteger index = [self->_roots indexOfObject:root];
-            for (UILabel *label in self->_labels[index]) require(CGColorGetAlpha(label.textColor.CGColor)==0, @"UIKit ink must not double the Metal glyph");
+            require(surface.shadowOpacity == 0, @"Metal surface must not cast a rectangular shadow");
+            for (UILabel *label in self->_labels[index]) {
+                require(CGColorGetAlpha(label.textColor.CGColor)==0, @"UIKit ink must not double the Metal glyph");
+                require(label.layer.shadowPath && !CGPathIsEmpty(label.layer.shadowPath), @"glow must use the glyph outline while UIKit ink is hidden");
+            }
 #endif
         }
         [self stop];
         for (UIView *root in self->_roots) require(root.layer.sublayers.lastObject.hidden, @"pause must hide shader");
         for (NSArray *labels in self->_labels) for (UILabel *label in labels) require(CGColorGetAlpha(label.textColor.CGColor)==1, @"pause must restore UIKit ink");
+#if SGR_LYRICS_SHADER_TESTING
+        for (NSArray *labels in self->_labels) for (UILabel *label in labels) require(!label.layer.shadowPath, @"pause must restore the original shadow policy");
+#endif
         [self resume];
         for (SGRLyricsShaderEffect *effect in self->_effects) [effect invalidate];
         require(SGRLyricsShaderEffect.activeMaskCount==0 && SGRLyricsShaderEffect.activeMaskPixels==0, @"cleanup with frames in flight");
@@ -184,6 +208,7 @@ void SGLogMessage(NSString *message) { NSLog(@"%@", message); }
             require(SGRLyricsShaderEffect.activeMaskCount==0 && SGRLyricsShaderEffect.activeMaskPixels==0, @"memory warning must release all active masks");
             require([self effect:0]==nil, @"memory warning must prevent immediate reallocation");
             for (NSArray *labels in self->_labels) for (UILabel *label in labels) require(CGColorGetAlpha(label.textColor.CGColor)==1, @"memory warning must restore readable text");
+            for (NSArray *labels in self->_labels) for (UILabel *label in labels) require(!label.layer.shadowPath, @"memory warning must restore the original shadows");
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 350*NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
                 for (UIView *root in self->_roots) for (CALayer *layer in root.layer.sublayers) require(![layer isKindOfClass:CAMetalLayer.class], @"cancelled work must not reattach surfaces");
                 [SGRLyricsShaderEffect setTestingRenderDelay:0];
