@@ -131,13 +131,6 @@ static BOOL isFace(UIView *view) {
     return faceClass && [view isKindOfClass:faceClass];
 }
 
-static void placeProfileLeading(UIView *face, UIView *header) {
-    if (!face || face.bounds.size.width <= 1) return;
-    CGFloat natural = [face.superview convertPoint:face.center toView:header].x - face.bounds.size.width / 2;
-    CGAffineTransform move = CGAffineTransformMakeTranslation(SGRSideMargin - natural, 0);
-    if (!CGAffineTransformEqualToTransform(face.transform, move)) face.transform = move;
-}
-
 static NSArray<UIView *> *placeRoot(UIView *header) {
     UIView *spotifyTitle = SGRFindByIdentifier(header, @"YourLibraryHeader.title", &kHeaderTitleKey);
     vanish(spotifyTitle);
@@ -150,13 +143,10 @@ static NSArray<UIView *> *placeRoot(UIView *header) {
         if (!face && isFace(view) && view.bounds.size.width > 1) face = view;
     });
     SGRNavbarSetProfilePhotoVisible(face);
+    if (face && SGFlag(SGRKeyNavbarProfilePhoto, YES)) [trailing addObject:face];
     CGFloat trailingEdge = trailing.count ? placeTrailing(header, trailing) : header.bounds.size.width - kRowInset;
-    BOOL photo = face && SGFlag(SGRKeyNavbarProfilePhoto, YES);
-    placeProfileLeading(face, header);
     CGRect rowFrame = SGFrameIn(trailing.firstObject ?: spotifyTitle, header);
-    CGFloat leading = photo ? MAX(SGRSideMargin, CGRectGetMaxX(SGFrameIn(face, header)) + SGRGrid) : SGRSideMargin;
-    layoutTitle(header, spotifyTitle, leading, trailingEdge, CGRectGetMidY(rowFrame));
-    if (face) [trailing insertObject:face atIndex:0];
+    layoutTitle(header, spotifyTitle, SGRSideMargin, trailingEdge, CGRectGetMidY(rowFrame));
     for (UIView *control in trailing) watchRow(control.superview, header, placeRoot);
     return trailing;
 }
@@ -192,7 +182,7 @@ static void layoutRoot(UIView *page) {
     NSArray<UIView *> *trailing = placeRoot(header);
     if (!trailing.count) return;
 
-    UIView *face = isFace(trailing.firstObject) ? trailing.firstObject : nil;
+    UIView *face = isFace(trailing.lastObject) ? trailing.lastObject : nil;
     static BOOL logged;
     if (!logged && header.window && face) {
         logged = YES;

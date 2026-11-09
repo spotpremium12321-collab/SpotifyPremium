@@ -55,7 +55,7 @@ static const CGFloat kLivingHeight = 200;
 // The lines on their own: the controls under them fade after this long without a touch.
 static const NSTimeInterval kRest = 4;
 
-static char kOverlayKey, kPlateKey, kTitleKey, kStackKey;
+static char kOverlayKey, kPlateKey, kTitleKey, kStackKey, kBottomFrameKey;
 static BOOL sg_open;
 static BOOL sg_moving;                      // the transition is in flight, so no layout pass may re-place it
 static __weak UIView *sg_host;              // SPTNowPlayingView
@@ -172,6 +172,8 @@ typedef struct {
     CGRect stage;     // where the lines go
     CGFloat lift;     // how far the title row rises
     CGFloat shift;    // how far the title slides right to clear the thumbnail, 0 when it sits under it
+    CGRect bottom;    // the controls' column in beside-cover mode
+    BOOL beside;
 } SGRLyricsLayout;
 
 // What a view's frame would be with the translation this file put on it left out.
@@ -183,8 +185,22 @@ static CGRect untransformed(UIView *view, UIView *host) {
 
 static BOOL besideCoverNow(UIView *host) {
     return UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad
+        && SGFlag(SGRKeyPlayerFullScreen, NO)
         && SGFlag(SGRKeyPlayerLyricsBeside, NO)
         && host.bounds.size.width >= 680;
+}
+
+// Spotify's full-width stack is restored before lyrics close. While they are open, a fresh full-width
+// frame is a rotation or another layout of Spotify's, and becomes the new frame to restore.
+static CGRect naturalBottomFrame(UIView *stack, UIView *host) {
+    CGRect current = SGFrameIn(stack, host);
+    NSValue *saved = objc_getAssociatedObject(stack, &kBottomFrameKey);
+    if (!saved || (current.size.width >= host.bounds.size.width * 0.75
+                   && !CGRectEqualToRect(current, saved.CGRectValue))) {
+        saved = [NSValue valueWithCGRect:current];
+        objc_setAssociatedObject(stack, &kBottomFrameKey, saved, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    return saved.CGRectValue;
 }
 
 static SGRLyricsLayout layoutIn(UIView *host) {
@@ -193,17 +209,25 @@ static SGRLyricsLayout layoutIn(UIView *host) {
     if (!host || host.bounds.size.height < kLivingHeight || !info || !duration) return l;
     CGRect area = SGRPlayerArtworkAreaIn(host), cover = SGRPlayerCoverFrameIn(host);
     if (CGRectIsNull(area) || CGRectIsNull(cover)) return l;
-    if (besideCoverNow(host) && CGRectGetMaxX(cover) + 280 < host.bounds.size.width) {
-        l.cover = cover;
-        l.thumb = cover;
-        l.lift = 0;
-        l.shift = 0;
-        CGFloat stageX = CGRectGetMaxX(cover) + 32;
-        CGFloat stageY = MAX(host.safeAreaInsets.top + 48, CGRectGetMinY(area));
-        CGFloat stageH = host.bounds.size.height - stageY - host.safeAreaInsets.bottom - 24;
-        l.stage = CGRectMake(stageX, stageY, host.bounds.size.width - stageX - 32, stageH);
-        l.ok = l.stage.size.width >= 240 && l.stage.size.height > kLivingHeight / 2;
-        return l;
+    if (besideCoverNow(host)) {
+        UIView *stack = SGRFindByIdentifier(host, @"npv.bottomStackView", &kStackKey);
+        if (stack) {
+            CGRect bar = naturalBottomFrame(stack, host);
+            CGFloat column = round(host.bounds.size.width * 0.25);
+            CGFloat side = MIN(cover.size.width, column - 2 * SGRSideMargin);
+            side = MIN(side, CGRectGetMinY(bar) - CGRectGetMinY(area) - 2 * SGRSideMargin);
+            l.cover = cover;
+            l.thumb = CGRectMake((column - side) / 2, CGRectGetMinY(area) + SGRSideMargin, side, side);
+            l.lift = 0;
+            l.shift = 0;
+            l.bottom = CGRectMake(0, CGRectGetMinY(bar), column, bar.size.height);
+            l.beside = YES;
+            CGFloat stageY = MAX(host.safeAreaInsets.top + 48, CGRectGetMinY(area));
+            CGFloat stageH = host.bounds.size.height - stageY - host.safeAreaInsets.bottom - 24;
+            l.stage = CGRectMake(column, stageY, host.bounds.size.width - column, stageH);
+            l.ok = side >= kThumbSide && l.stage.size.width >= 240 && l.stage.size.height > kLivingHeight / 2;
+            return l;
+        }
     }
     CGRect row = untransformed(info, host), bar = untransformed(duration, host);
     // The thumbnail takes the title's own leading edge, so the two line up down the page.
@@ -266,8 +290,22 @@ static void clipTitle(UIView *element, CGFloat width) {
     [CATransaction commit];
 }
 
+static void placeBottomStack(UIView *host, SGRLyricsLayout l) {
+    UIView *stack = SGRFindByIdentifier(host, @"npv.bottomStackView", &kStackKey);
+    if (!stack) return;
+    CGRect natural = naturalBottomFrame(stack, host);
+    CGRect target = sg_open && l.beside ? l.bottom : natural;
+    if (!CGRectEqualToRect(SGFrameIn(stack, host), target)) {
+        stack.bounds = (CGRect){CGPointZero, target.size};
+        stack.center = [host convertPoint:CGPointMake(CGRectGetMidX(target), CGRectGetMidY(target)) toView:stack.superview];
+        [stack setNeedsLayout];
+    }
+    [stack layoutIfNeeded];
+}
+
 // The unit's row lays its arranged views out after the unit's own pass, so the transforms go on after it.
 static void placeTitleRow(SGRLyricsLayout l) {
+    placeBottomStack(sg_host, l);
     UIView *info = sg_info.viewIfLoaded;
     if (!info) return;
     [SGRowIn(info) layoutIfNeeded];
@@ -610,7 +648,7 @@ static void setAlone(BOOL alone, BOOL animated) {
         if (overlay.superview) {
             overlay.lyrics.extrasHidden = alone;
             BOOL hideThumb = alone && !SGFlag(SGRKeyLyricsKeepTitle, NO) && !besideCoverNow(host);
-            overlay.thumb.alpha = SGRPlayerMotionShowing() || hideThumb ? 0 : 1;
+            overlay.thumb.alpha = hideThumb ? 0 : 1;
         }
         fadeControls(alone);
     };
@@ -756,7 +794,7 @@ static void replace(void) {
     place(overlay, host, l);
     overlay.thumb.transform = thumbTransform(l);
     BOOL hideThumb = sg_alone && !SGFlag(SGRKeyLyricsKeepTitle, NO) && !besideCoverNow(host);
-    overlay.thumb.alpha = SGRPlayerMotionShowing() || hideThumb ? 0 : 1;
+    overlay.thumb.alpha = hideThumb ? 0 : 1;
     overlay.cover.layer.cornerRadius = thumbRadius(l, YES);
     overlay.lyrics.frame = overlay.stage.bounds;
     SGRPlayerCoverList().alpha = 0;

@@ -2,6 +2,7 @@
 #import <UIKit/UIKit.h>
 #import "Shared/Player/PlayerState.h"
 UIColor *SGRAccentColor(void) { return nil; }
+void SGRNavbarSetProfilePhotoVisible(UIView *face) {}
 __weak UIView *sgr_nowPlayingRoot = nil;
 __weak UIView *sgr_nowPlayingCard = nil;
 __weak UIView *sgr_lyricsCardRoot = nil;

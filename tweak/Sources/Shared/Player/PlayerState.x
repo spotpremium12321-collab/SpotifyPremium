@@ -36,7 +36,7 @@ static NSString *transitionKey(SPTPlayerTrack *track) {
     NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:provider];
     for (NSString *key in @[@"automix.mode", @"automix.transition_uri", @"automix.auto_preset_id",
                             @"audio.fade_out_start_time", @"audio.fade_out_duration",
-                            @"audio.fade_in_start_time", @"audio.fade_in_duration", @"audio.fade_overlap"]) {
+                            @"audio.fade_in_start_time", @"audio.fade_in_duration", @"audio.fade_overlap", @"media.stop_position"]) {
         id value = metadata[key];
         [parts addObject:[value isKindOfClass:NSString.class] ? value
             : [value isKindOfClass:NSNumber.class] ? [value stringValue] : @""];
@@ -47,13 +47,15 @@ static NSString *transitionKey(SPTPlayerTrack *track) {
 static NSString *keyOf(SPTPlayerState *state) {
     SPTPlayerOptions *options = [state respondsToSelector:@selector(options)] ? state.options : nil;
     BOOL shuffling = [options respondsToSelector:@selector(shufflingContext)] && options.shufflingContext;
+    BOOL repeatContext = [options respondsToSelector:@selector(repeatingContext)] && options.repeatingContext;
+    BOOL repeatTrack = [options respondsToSelector:@selector(repeatingTrack)] && options.repeatingTrack;
     NSDictionary *metadata = [state.track.metadata isKindOfClass:NSDictionary.class] ? state.track.metadata : nil;
     NSString *canvas = [metadata[@"canvas.url"] isKindOfClass:NSString.class] ? metadata[@"canvas.url"] : @"";
     NSString *kind = [metadata[@"canvas.type"] isKindOfClass:NSString.class] ? metadata[@"canvas.type"] : @"";
     NSArray *future = [state respondsToSelector:@selector(future)] && [state.future isKindOfClass:NSArray.class] ? state.future : nil;
     SPTPlayerTrack *next = [future.firstObject isKindOfClass:NSClassFromString(@"SPTPlayerTrack")] ? future.firstObject : nil;
-    return [NSString stringWithFormat:@"%@|%@|%d%d%d%d|%@|%@|%@|%@|%@", SGURIString(state.track.URI), SGURIString(state.contextURI),
-            state.isPaused, state.isPlaying, [state respondsToSelector:@selector(isLoading)] && state.isLoading, shuffling,
+    return [NSString stringWithFormat:@"%@|%@|%d%d%d%d%d%d|%@|%@|%@|%@|%@", SGURIString(state.track.URI), SGURIString(state.contextURI),
+            state.isPaused, state.isPlaying, [state respondsToSelector:@selector(isLoading)] && state.isLoading, shuffling, repeatContext, repeatTrack,
             canvas, kind, transitionKey(state.track), SGURIString(next.URI), transitionKey(next)];
 }
 

@@ -215,7 +215,7 @@ static void modeButtons(UIView *host) {
             NSString *sym = trackRepeat ? @"repeat.1" : @"repeat";
             SGRGlyphView *glyph = glyphFor(repeat, sym, 20);
             [glyph setSymbol:sym animated:NO];
-            SGForEachView(content, ^(UIView *view) {
+            SGForEachView(repeat, ^(UIView *view) {
                 if (view != glyph && ([view isKindOfClass:UIImageView.class] || [NSStringFromClass(view.class) containsString:@"IconView"])) {
                     SGRPlayerVanish(view);
                 }
@@ -249,7 +249,14 @@ static void modeButtons(UIView *host) {
 - (void)playerStateDidChange:(SPTPlayerState *)state {
     // The first state can land after the controls laid out, which left the disc for want of one.
     if (!sg_playGlyph) [sg_controlsHost setNeedsLayout];
-    if (sg_controlsHost && SGRPlayerMusicIconsOn()) modeButtons(sg_controlsHost);
+    UIView *host = sg_controlsHost;
+    if (host && SGRPlayerMusicIconsOn()) {
+        modeButtons(host);
+        // Spotify replaces the repeat icon after publishing the state that asked for it.
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (sg_controlsHost == host) modeButtons(host);
+        });
+    }
     refreshPlayGlyph(YES);
     // Spotify raises its spinner a moment after a state says loading, and drops it a moment after.
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kSpinnerCheck * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ refreshPlayGlyph(YES); });

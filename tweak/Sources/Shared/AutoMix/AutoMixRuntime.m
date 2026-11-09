@@ -236,7 +236,7 @@ NSString *SGAutoMixLastTransition(void) {
 // unit once for the whole plan: judging each value alone turns a 100 s start + 5 s overlap into
 // 100 s..1,005 s.
 static double planScale(double start, double length, double duration) {
-    if (duration > 0) return (start > duration * 10.0 || length > duration * 10.0) ? 1000.0 : 1.0;
+    if (duration > 0) return (start > duration || (length > duration && length > 12)) ? 1000.0 : 1.0;
     return (start > 3600.0 || length > 3600.0) ? 1000.0 : 1.0;
 }
 

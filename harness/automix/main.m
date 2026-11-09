@@ -160,7 +160,9 @@ int main(void) {
         check(SGAutoMixCopyContext(context) == context, @"Crossfade leaves native context metadata alone");
         SGSetInt(SGKeyAutoMixStyle, 0);
         check(SGAutoMixHasTransition(@{@"automix.transition_uri": @"spotify:transition:test"}), @"Transition URI detected");
-        check(SGAutoMixHasTransition(@{@"audio.fade_out_start_time": @"0"}), @"Zero-time outgoing plan is valid");
+        check(!SGAutoMixHasTransition(@{@"audio.fade_out_start_time": @"0"}) && !SGAutoMixHasTransition(@{@"media.stop_position": @"200000"}),
+              @"Timing anchors alone do not disable the crossfade fallback");
+        check(SGAutoMixHasTransition(@{@"audio.fade_out_start_time": @"0", @"audio.fade_out_duration": @"5000"}), @"A zero-time start with a fade is a valid plan");
         check(SGAutoMixHasTransition(@{@"audio.fade_out_duration": @"8000"}) && SGAutoMixHasTransition(@{@"audio.fade_overlap": @"5000"}), @"Positive fade duration/overlap detected");
         check(!SGAutoMixHasTransition(@{@"audio.fade_out_start_time": @"nonsense"}) && !SGAutoMixHasTransition(@{@"audio.fade_out_start_time": @(-1)}), @"Malformed outgoing plans ignored");
         check(!SGAutoMixHasTransition(@{@"audio.fade_in_start_time": @"2"}), @"Incoming plan does not prove an outgoing transition");
@@ -221,6 +223,29 @@ int main(void) {
         SGAutoMixPlayerStateChanged(state);
         check(SGAutoMixMixWindow(&ws, &we, nil) && fabs(ws - 172) < 1e-3 && fabs(we - 180) < 1e-3,
               @"A plan with stop_position and fade_out_duration computes its window");
+        state.track.metadata = @{@"audio.fade_out_duration": @"1000"};
+        SGAutoMixPlayerStateChanged(state);
+        check(SGAutoMixMixWindow(&ws, &we, nil) && fabs(ws - 199) < 1e-3 && fabs(we - 200) < 1e-3,
+              @"A one-second millisecond fade on a long song uses milliseconds");
+        state.track.metadata = @{@"audio.fade_out_start_time": @"1000", @"audio.fade_out_duration": @"1000"};
+        SGAutoMixPlayerStateChanged(state);
+        check(SGAutoMixMixWindow(&ws, &we, nil) && fabs(ws - 1) < 1e-3 && fabs(we - 2) < 1e-3,
+              @"A short millisecond start and fade use one unit");
+        state.track.metadata = @{@"audio.fade_out_start_time": @"0", @"audio.fade_out_duration": @"1000"};
+        SGAutoMixPlayerStateChanged(state);
+        check(SGAutoMixMixWindow(&ws, &we, nil) && fabs(ws) < 1e-3 && fabs(we - 1) < 1e-3,
+              @"A zero start with a millisecond fade does not span the song");
+        state.duration = 10;
+        state.track.metadata = @{@"audio.fade_out_start_time": @"0", @"audio.fade_out_duration": @"12"};
+        SGAutoMixPlayerStateChanged(state);
+        check(SGAutoMixMixWindow(&ws, &we, nil) && fabs(ws) < 1e-3 && fabs(we - 10) < 1e-3,
+              @"A second-based fade longer than a short song stays in seconds");
+        state.duration = 200;
+        state.track.metadata = @{@"media.stop_position": @"200000"};
+        SGAutoMixPlayerStateChanged(state);
+        check(preferences.audioAutomix && preferences.audioCrossfade && preferences.audioCrossfadeTime == 5000
+              && SGAutoMixMixWindow(&ws, &we, nil) && fabs(ws - 195) < 1e-3 && fabs(we - 200) < 1e-3,
+              @"A stop-position-only report restores the fallback after a native plan");
         for (id bad in @[@"garbage", @"1oops", NSNull.null]) {
             state.track.metadata = @{@"automix.transition_uri": @"spotify:track:next",
                 @"audio.fade_out_start_time": bad, @"audio.fade_out_duration": @"5"};

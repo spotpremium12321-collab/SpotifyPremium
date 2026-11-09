@@ -52,7 +52,7 @@ BOOL SGAutoMixHasTransition(NSDictionary *metadata) {
     if (![metadata isKindOfClass:NSDictionary.class]) return NO;
     id uri = metadata[@"automix.transition_uri"];
     if ([uri isKindOfClass:NSString.class] && [uri length]) return YES;
-    for (NSString *key in @[@"audio.fade_out_start_time", @"audio.fade_out_duration", @"audio.fade_overlap", @"media.stop_position"]) {
+    for (NSString *key in @[@"audio.fade_out_duration", @"audio.fade_overlap"]) {
         id value = metadata[key];
         double number = 0;
         if ([value isKindOfClass:NSNumber.class]) number = [value doubleValue];
@@ -60,8 +60,7 @@ BOOL SGAutoMixHasTransition(NSDictionary *metadata) {
             NSScanner *scanner = [NSScanner scannerWithString:value];
             if (![scanner scanDouble:&number] || !scanner.isAtEnd) continue;
         } else continue;
-        BOOL allowZero = [key isEqualToString:@"audio.fade_out_start_time"];
-        if (isfinite(number) && (allowZero ? number >= 0 : number > 0)) return YES;
+        if (isfinite(number) && number > 0) return YES;
     }
     return NO;
 }
