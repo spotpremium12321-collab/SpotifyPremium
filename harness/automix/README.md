@@ -19,3 +19,11 @@ preference hooks. It constructs an existing preferences object without calling `
 then checks discovery through normal reads, replacement-object discovery through writes, restoration,
 and 1,000 repeated reads without recursion or extra writes. `AUTOMIX_HOOK_SOURCE=/path/to/AutoMix.x`
 selects a prior implementation for regression comparison.
+
+Storage-selection regression: the core configuration and the launch flag forcer
+must both disable `use_playback_settings_crossfade` in the iOS and playback-settings
+scopes, while keeping crossfade enabled. AutoMix writes legacy preferences; selecting
+the newer store disconnects those writes after Spotify's one-time migration. The
+model test covers missing/true gates and multiple properties in one scope; the hooks
+test checks the production constructor's provider overrides. These checks still
+require the phone to establish audible overlap.

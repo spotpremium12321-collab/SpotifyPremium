@@ -7,7 +7,11 @@ static void check(BOOL value, NSString *message) {
 }
 void SGLogMessage(NSString *message) {}
 void SGRequireClasses(NSArray *names) {}
-void SGRegisterFlagForcer(BOOL beats, SGFlagForcer launch, SGFlagForcer locked) {}
+static SGFlagForcer sg_launchFlags, sg_lockedFlags;
+void SGRegisterFlagForcer(BOOL beats, SGFlagForcer launch, SGFlagForcer locked) {
+    check(beats, @"AutoMix storage selection must beat stale All flags overrides");
+    sg_launchFlags = [launch copy]; sg_lockedFlags = [locked copy];
+}
 void SGAddPlayerStateObserver(id observer) {}
 SPTPlayerState *SGPlayerState(void) { return nil; }
 id<SPTPlayer> SGPlaybackPlayer(void) { return nil; }
@@ -53,6 +57,13 @@ int main(void) {
             "_TtC31Preferences_CorePreferencesImpl28SPTPreferencesImplementation", 0);
         objc_registerClassPair(preferencesClass);
         SGTestInstallHooks();
+        for (NSString *scope in @[@"ios-feature-settings", @"playback-settings"]) {
+            NSString *key = [scope stringByAppendingString:@".use_playback_settings_crossfade"];
+            check([sg_launchFlags(key) isEqual:@NO] && [sg_lockedFlags(key) isEqual:@NO],
+                @"Both providers select the same legacy crossfade store as AutoMix");
+        }
+        check([sg_launchFlags(@"core-playback-setup.crossfade_enabled") isEqual:@YES], @"The fade engine stays enabled");
+        check(sg_launchFlags(@"unrelated.flag") == nil, @"Unrelated flags retain Spotify's values");
         HookPreferences *preferences = [preferencesClass new];
         HookTrack *track = [HookTrack new]; track.URI = @"spotify:track:fixture"; track.metadata = @{};
         HookState *state = [HookState new]; state.contextURI = @"spotify:playlist:fixture"; state.track = track; state.future = @[];

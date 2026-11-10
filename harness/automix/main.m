@@ -105,7 +105,8 @@ static NSDictionary *configurationValues(NSData *configuration) {
         if (field.number != 3) continue;
         NSArray *value = SGPBParse(field.payload), *identifier = SGPBParse(SGPBFirst(value, 1).payload);
         NSString *component = SGPBText(SGPBFirst(identifier, 1));
-        if (component) values[component] = @(SGPBFirst(SGPBParse(SGPBFirst(value, 3).payload), 1).varint != 0);
+        NSString *name = SGPBText(SGPBFirst(identifier, 2));
+        if (component && name) values[[NSString stringWithFormat:@"%@.%@", component, name]] = @(SGPBFirst(SGPBParse(SGPBFirst(value, 3).payload), 1).varint != 0);
     }
     return values;
 }
@@ -170,9 +171,19 @@ int main(void) {
         NSData *config = SGPBSerialize(@[SGPBString(11, @"untouched"), property(@"core-automix", @"automix_enabled", NO), property(@"unrelated", @"property", NO)]);
         NSData *changed = SGAutoMixConfiguration(config);
         NSDictionary *values = configurationValues(changed);
-        check([values[@"core-automix"] boolValue] && [values[@"core-playback-setup"] boolValue], @"Enable player core, including missing fields");
-        check(![values[@"unrelated"] boolValue] && [SGPBText(SGPBFirst(SGPBParse(changed), 11)) isEqual:@"untouched"], @"Keep unrelated core configuration");
+        check([values[@"core-automix.automix_enabled"] boolValue] && [values[@"core-playback-setup.crossfade_enabled"] boolValue], @"Enable player core, including missing fields");
+        check(![values[@"unrelated.property"] boolValue] && [SGPBText(SGPBFirst(SGPBParse(changed), 11)) isEqual:@"untouched"], @"Keep unrelated core configuration");
         check([SGAutoMixConfiguration(changed) isEqual:changed], @"Configuration patch is idempotent");
+        for (NSString *scope in @[@"ios-feature-settings", @"playback-settings"]) {
+            NSString *key = [scope stringByAppendingString:@".use_playback_settings_crossfade"];
+            check([values[key] isEqual:@NO], @"Absent storage gates select the legacy preferences AutoMix writes");
+            NSData *migrated = SGPBSerialize(@[property(scope, @"use_playback_settings_crossfade", YES),
+                property(scope, @"unrelated", YES)]);
+            NSDictionary *fixed = configurationValues(SGAutoMixConfiguration(migrated));
+            check([fixed[key] isEqual:@NO], @"An enabled playback-settings gate cannot disconnect AutoMix from the engine");
+            check([fixed[[scope stringByAppendingString:@".unrelated"]] isEqual:@YES], @"Keep unrelated properties in the same scope");
+        }
+
         NSData *malformed = [NSData dataWithBytes:"\xff" length:1];
         check([SGAutoMixConfiguration(malformed) isEqual:malformed], @"Malformed config passes through");
 
