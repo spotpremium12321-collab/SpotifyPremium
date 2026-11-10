@@ -79,6 +79,26 @@ Rules:
   stacks (the tab bar, the now playing bar, the player) that is the system's: set every pane of the
   mod's to `overrideUserInterfaceStyle = UIUserInterfaceStyleDark`, or it goes light in light mode.
 
+## Skills
+
+Two directories load: `~/.agents/skills` (the machine's) and `.agents/skills/` (this repo's), which
+`.claude/skills/` mirrors. Which to reach for here:
+
+- `spotipw-code-notes` — the why behind every file in `tweak/Sources`; load it before changing one.
+- `spotipw-binary-checks` — proving a class, selector, flag, metadata key or stored setting against the
+  decrypted 9.1.90 app, and what that proof does and does not cover.
+- `diagnosing-bugs` — a device report or a "nothing happens" with no obvious seam; its first phase is a
+  signal that goes red on the bug, which here is a harness case or a one-shot `[spotifyglass]` line.
+- `apple-hig`, `liquid-glass`, `apple-design`, `review-animations`, `animation-vocabulary` — the
+  redesign's screens, materials and motion.
+- `reverse-engineer-anything` (REA) is installed on the machine, not vendored here (the copy carries no
+  license): the heavy machinery when a fix depends on a shipped binary rather than this repo.
+
+Dispatching, when a task is big enough to hand off: `subagent_fork` for a review with this repo's rules
+already in context, `subagent_perf` for the shader, DSP and audio paths, `subagent_design` for the
+redesign's screens, `subagent_security` for entitlement, spoofing and download work. `subagent_db` and
+`subagent_php` have no place here.
+
 ## Ending a task
 
 The owner runs about ten sessions at once, each on a different task, and reads each final message with

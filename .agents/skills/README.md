@@ -12,8 +12,13 @@ reads. `.claude/skills/` links each one back here, so Claude Code and the agents
                            momentum projection, rubber-banding, interruptible transitions, materials
     review-animations/     a strict review of motion code, `/review-animations`; STANDARDS.md holds the values
     animation-vocabulary/  the name of a motion effect you can describe but not name
+    diagnosing-bugs/       the diagnosis loop for a hard bug, from the report to a red-then-green signal;
+                           its agents/openai.yaml and scripts/ come with it
     spotipw-code-notes/    this mod's own explanations, moved out of the code comments and organised
                            by layer and file; written for this repo, not copied from upstream
+    spotipw-binary-checks/ how to prove a class, selector, flag, metadata key or stored setting against
+                           the decrypted 9.1.90 app in ipa/, and what that proof does and does not say;
+                           written for this repo
 
 The motion skills write their examples in CSS and JavaScript. The rules carry over to UIKit as they
 are: a spring is `-[UISpringTimingParameters initWithDampingRatio:initialVelocity:]` on a
@@ -23,8 +28,8 @@ is `UIAccessibilityIsReduceMotionEnabled()`.
 ## Where they come from
 
 Copied unchanged unless noted. To update one, copy the upstream directory over it and redo the note.
-`spotipw-code-notes/` has no upstream: it is written for this repo from the tweak's own former code
-comments.
+`spotipw-code-notes/` and `spotipw-binary-checks/` have no upstream: they are written for this repo, the
+first from the tweak's own former code comments, the second from the checks every fix here has to pass.
 
 | Skill | Upstream | Commit | License |
 | --- | --- | --- | --- |
@@ -33,6 +38,7 @@ comments.
 | `apple-design` | [emilkowalski/skills](https://github.com/emilkowalski/skills) `skills/apple-design` | `85e8e23` | MIT, `LICENSE` beside it |
 | `review-animations` | [emilkowalski/skills](https://github.com/emilkowalski/skills) `skills/review-animations` | `85e8e23` | MIT, `LICENSE` beside it |
 | `animation-vocabulary` | [emilkowalski/skills](https://github.com/emilkowalski/skills) `skills/animation-vocabulary` | `85e8e23` | MIT, `LICENSE` beside it |
+| `diagnosing-bugs` | [mattpocock/skills](https://github.com/mattpocock/skills) `skills/engineering/diagnosing-bugs/` | installed copy, commit not recorded | MIT, `LICENSE` beside it (© 2026 Matt Pocock) |
 
 `apple-hig` is named `apple-design` upstream; its `name:` was changed so it does not collide with
 Emil Kowalski's `apple-design`. `node .agents/skills/apple-hig/scripts/pull-hig.mjs` pulls the
