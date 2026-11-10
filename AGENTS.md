@@ -54,8 +54,17 @@ Rules:
 
 ## Working on it
 
-- Build: `make install` (signs and pushes to the phone), `make release` (IPA only). Tweak only:
-  `env -u MAKELEVEL gmake -C tweak clean package`.
+- Build: `make install` (signs and pushes to the phone), `make release` (IPA only, into `out/`).
+  Tweak only: `env -u MAKELEVEL gmake -C tweak clean package`. The pipeline needs `gmake`, `ldid` and
+  `dpkg-deb`, which this Mac's Homebrew has (`arch -arm64 brew install make ldid dpkg` — the shell runs
+  under Rosetta and plain `brew` refuses to install from it). The IPA comes out fakesigned only and is
+  sideloaded, so whoever signs it re-signs the app *and* the Live Activity and Safari `.appex` inside.
+- A device report is a screenshot and one line. Measure the screenshot back to the code before touching
+  anything (a 15pt overlap once turned out to be a shift loop's threshold), and replay the page in a
+  harness where one exists: `harness/library` and `harness/home-*` build the real `LibraryHeader.x` and
+  Home's header against a mock of Spotify's page. Nothing builds `PlayerControls.x`, `PlayerHeader.x` or
+  `PlayerLyrics.x`, so those are reasoned from the recorded tree and the screenshot and need the phone;
+  they leave a one-shot `[spotifyglass]` log line for the next report.
 - Look at Spotify's views through recorded trees (`make session` records clean ones into
   `trees/clean/`) before hooking anything. Prove every class and selector against the tree or the binary.
 - Device log: `make log` (`[spotifyglass]` lines).

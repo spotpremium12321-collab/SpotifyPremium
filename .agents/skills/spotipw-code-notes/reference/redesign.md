@@ -1662,9 +1662,9 @@
 **file overview** (was L1)
 > Library redesign: the header of Your Library and of a folder inside it, the way Home and Search have theirs
 > (Redesigned/Home/HomeHeader.x, Redesigned/Search/SearchPage.x), with the avatar that opens the side drawer and
-> the buttons at the trailing edge. The root draws no title of its own -- "Your Library" ran over the avatar in
-> the leading corner, so it is not drawn at all and the header carries no text; a folder still draws its own
-> name. The scrim Spotify lays behind the header is gone, the soft scroll edge (Kit/SGREdgeEffect.x) being what
+> the buttons at the trailing edge. The root draws its own title where the leading edge is free and reads what
+> Spotify's says, so it follows the app's language; a folder draws its own name. The scrim Spotify lays behind
+> the header is gone, the soft scroll edge (Kit/SGREdgeEffect.x) being what
 > keeps the header clear of the list scrolling under it.
 >
 > The filter chips under the row stay Spotify's, untouched. They were taken out when the redesign was first
@@ -1725,12 +1725,15 @@
 > touch -- the header's height, the list under it -- stays the page's pass's.
 
 **`static NSArray<UIView *> *placeRoot(UIView *header) {`** (was L182)
-> The root header's controls at its trailing edge, the avatar last and no title at all. Answers what it placed
-> in the order it reads, nothing while the header has no control laid out.
+> The root header's controls at its trailing edge, the avatar last and the title at the leading edge. Answers
+> what it placed in the order it reads, nothing while the header has no control laid out.
 
-**`placeTrailing(header, trailing);`** (was L198)
-> No title on the root: "Your Library" ran over the avatar in the leading corner, so the header carries
-> only the controls at its trailing edge.
+**`CGFloat leading = face ? SGRSideMargin : MAX(SGRSideMargin, CGRectGetMinX(SGFrameIn(spotifyTitle, header)));`** (was L198)
+> "Your Library" ran over the avatar in the leading corner every time the avatar was not found to be moved to
+> the trailing edge with the buttons, so the title then starts where Spotify's own does -- after the avatar --
+> and the header is left in Spotify's arrangement rather than a title over the button that opens the side
+> drawer. 9.1.90 does not hand the avatar over as an AdaptiveFaceContainer on every account; the harness's
+> `plain-avatar` builds that header.
 
 **`static NSArray<UIView *> *placeFolder(UIView *header) {`** (was L205)
 > The folder header's controls at its trailing edge and the title between them and the back button, which stays
@@ -2695,6 +2698,23 @@
 > id=now-playing-time-take-label and id=now-playing-time-remaning-label, SPTEncoreLabels whose UILabel
 > is id=...-internal (:227). The sticky header has a play button of its own (:492), which a search
 > inside the unit's view never reaches.
+>
+> Shuffle and repeat, with Player > Music App icons on, take the Music app's shuffle and repeat glyphs and
+> the accent colour when they are on (modeButtons). They are EncoreButtons, UIButtons the tree records at
+> :247 and :290 (Shared/Haptics/ControlHaptics.x, the identifiers its taps arrive by), so the button is the
+> control and what it draws is a subview of its own -- for the repeat button a view rebuilt with the mode,
+> which is why the glyph lives on the button and not in it.
+
+**`static void modeGlyph(UIView *button, NSString *symbol, BOOL on) {`** (was L186)
+> The mode button's glyph over Spotify's icon, the icon gone whatever shape it has this pass: every other
+> subview of the button, not only the icon classes. The two buttons do not draw their icons alike -- the
+> shuffle's sits under a content view, the repeat's is the button's own -- and a glyph added the shuffle's
+> way (the button's first subview) went transparent with the icon that pass hid, so the repeat glyph never
+> showed at all and Spotify's was all there was to see.
+>
+> Spotify rebuilds that icon after the state that changed the mode has gone out; the watcher's next turn,
+> and its 0.3s pass for a rebuild that lands later, hide it again. The button is the control (both are in
+> ControlHaptics.x by identifier), so a subview of it going transparent costs no touches.
 
 **`static const NSTimeInterval kTapTrust = 1.2;`** (was L27)
 > After a tap the glyph shows what the tap asked for, and a state still saying the opposite is taken for
@@ -2840,6 +2860,17 @@
 > Tree (trees/clean/player/01.txt): HeaderElementsUnit's view is a 402x48 row holding
 > id=now-playing-minimize-button 48x48 (:103) and id=Context menu 48x48 (:122), the playlist name
 > between them.
+>
+> With the Music app top bar on the header row goes silent -- a grabber where its middle was, nothing of
+> Spotify's on it -- and the information row carries the ⋯ pill instead, at its trailing edge, which
+> takes 36pt off the row's buttons and a reference to the menus the header's more button used to open.
+
+**`static void makeRoomForPill(UIView *host, UIView *more, CGFloat rightEdge) {`** (was L205)
+> The 36pt the pill needs, taken off the buttons standing in its way -- and off the rest of their row with
+> them. Measured one button at a time by where each stands, the row split: the add button stood past the
+> threshold and moved, the 24pt ban button a radio or a mix puts beside it did not, and the add landed 15pt
+> into it (device report, 2026-11-09: the add at 288-312pt of 375 with the ban still at 279-303). A row of
+> one -- every other context -- moved as it always had.
 
 ## `Redesigned/Player/PlayerLyrics.x`
 
@@ -3001,6 +3032,23 @@
 **`static void replace(void) {`** (was L947)
 > A layout pass, a new track or a turn of the phone: the state is put back where it belongs without
 > animating, since the frames it is measured from have just changed.
+>
+> A pass that cannot measure the player while the lines are up asks for another one on the next turn
+> instead of simply leaving: a new track rebuilds the units' views, and the pass before those have laid
+> out finds no cover to measure. Left there, the lines keep the room they last had, which is the room the
+> controls gave up while they were alone, and the rebuilt controls are drawn back over them with nothing
+> coming to take the lines back (device report, 2026-11-09, iPad: the credit line of the lines at the
+> bottom of the screen, the controls over them and the title row left where the new views put it).
+> Bounded like PlayerFooter.x's Connect look-again, and the log line says what the failed measurement saw.
+
+**`static void clipStageAboveControls(SGRPlayerLyricsOverlay *overlay, UIView *host) {`** (was L340)
+> The lines stop where the controls start, whatever the measurement could do. The stage is meant to reach past
+> them only where they are away: faded with the lines alone, or in the beside-cover layout, where the lines have
+> a column of their own and the controls another. A player that could not be measured keeps the stage at the
+> height the controls gave up while they were gone, and the rebuilt controls come back over the lines (the same
+> device report as replace's). A mask on the stage, not a shorter frame: the sung line is anchored to the stage,
+> and a frame that moved under it would spring it to a new place. Where the stage already ends at the controls --
+> every pass the measurement reaches -- the mask is nil and nothing is drawn through one.
 
 **`%hook _TtC20NowPlaying_ModesImpl20FloatingElementsUnit`** (was L1051)
 > The chips over the title (Switch to video and whatever else a track brings) sit in the middle of the

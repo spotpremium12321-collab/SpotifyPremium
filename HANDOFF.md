@@ -136,18 +136,20 @@ The goal of this project phase was to bring **Taurus-New** from its initial base
 
 ## 4. Current Build & Deliverables
 
-Latest build verified here: November 8, 2026, Taurus 0.60.5 on Spotify 9.1.90.
-The lyrics shader glow-fix IPA was built from the current working tree, including the existing changes
-from other tasks. Its filename is unique; the mod version was not bumped. Device signing and
-installation were not performed in this task.
+Latest build verified here: November 9, 2026, Taurus 0.60.5 on Spotify 9.1.90.
+The November 9 IPA carries the four device fixes of section 9 on top of the lyrics shader glow fix;
+it was built from the current working tree, including the existing changes from other tasks. The mod
+version was not bumped and nothing was committed. Device signing and installation were not performed:
+the owner sideloads this one.
 
 | Artifact | Location | Status |
 |---|---|---|
 | **Compiled Tweak DEB** | `tweak/packages/com.spotipw_0.60.5_iphoneos-arm.deb` | Built & signed |
 | **Downloads Verification** | Injected `SpotifyAudioProbe.dylib` | 100% Verified passed |
+| **Latest Release IPA — Device Bug Round** | `out/Taurus-0.60.5.ipa` (132 MB, SHA-256: `5d46807a59c613121fbd29235028fd478ddae311a9d479f4d8e29d8dadf65491`, sidecar `.sha256` beside it) | Full pipeline exit 0: Downloads patch verified, tweak + Live Activity + Safari + App Group shim injected, alternate icons, App Intents, finished-IPA Downloads verification passed; fakesigned only, the owner sideloads it and its signer must re-sign the two embedded `.appex` |
 | **Previous Release IPA — Lyrics Shaders** | `out/Taurus-0.60.5-LyricsShaders-20261107-205155-AF5B87A8.ipa` (138,043,022 bytes, SHA-256: `cb56a6d53c8f0ec4a3638ceb8710b6d653023fd22b081a9a8a1c169319860f2b`) | Archive integrity and embedded shader renderer verified; no FLEX; requires signing for device installation |
 | **Previous Release IPA — Lyrics Shader Performance** | `out/Taurus-0.60.5-LyricsShaders-Performance-20261107-235915-0F1FD8E7.ipa` (138,044,821 bytes, SHA-256: `b29fe80e0757effdcd4a8a1636f99297886382f0abd40b78f5f5ecff28b21c9c`) | ZIP integrity, production renderer markers, test-hook exclusion and no FLEX verified; requires signing for device installation |
-| **Latest Release IPA — Lyrics Shader Glow Fix** | `out/Taurus-0.60.5-LyricsShader-GlowFix-20261108-042228-0E7CCC67.ipa` (138,047,928 bytes, SHA-256: `65795ecdc1a70d3fd287d13abf784ee6f5a96deca02eb63020603123e572861f`) | ZIP integrity, embedded glyph-outline code, no test hooks and no FLEX verified; requires signing for installation |
+| **Previous Release IPA — Lyrics Shader Glow Fix** | `out/Taurus-0.60.5-LyricsShader-GlowFix-20261108-042228-0E7CCC67.ipa` (138,047,928 bytes, SHA-256: `65795ecdc1a70d3fd287d13abf784ee6f5a96deca02eb63020603123e572861f`) | ZIP integrity, embedded glyph-outline code, no test hooks and no FLEX verified; requires signing for installation |
 | **Release Build Log** | `out/lyrics-shader-artifact/release-build.log` | Build completed; finished-IPA Downloads verification passed |
 | **Previous Release IPA — November 6** | `out/Taurus-0.60.5-Fixes-20261106-230455.ipa` (138,034,696 bytes, SHA-256: `830dd8fe651f8eb5c8c01e945125f6943010056a0f5a8bd4e8d4e69c146455f6`) | Historical build evidence |
 
@@ -403,3 +405,67 @@ Next: sign/install the **LyricsShader-GlowFix IPA in section 4**, restart Spotif
 UI on iOS 27**, open **Mod Settings → Lyrics → Adjust → Lyrics shader**, and replay the affected
 track/style. Check moving words and their glow for boxes, then pause/resume and seek. If the box
 persists, an image showing it is needed to distinguish a glow issue from a filled shader artifact.
+
+---
+
+## 9. Device Bug Round (November 9, 2026)
+
+Four bug reports came from the owner's device testing, each a screenshot and one line. Each was
+fixed at its root, in the working tree and in the November 9 IPA of section 4. No version bump,
+nothing committed. Each fix's *why* is in `.agents/skills/spotipw-code-notes/reference/redesign.md`
+under its file, as the house style asks; this section is the state and the evidence.
+
+1. **Library title running over the profile avatar** (`Redesigned/Library/LibraryHeader.x`)
+   - Root cause: the title's leading edge was a flat `SGRSideMargin`. The avatar is only moved to the
+     trailing edge when it is found as `ListeningActivity_ElementsKit.AdaptiveFaceContainer`, and 9.1.90
+     does not hand it over that way on every account; when it is not found it stays at the row's leading
+     edge, exactly where the title was drawn. The fallback that avoided this (the title starting where
+     Spotify's own title starts) was written when the title was restored and lost in the 5cabfbe and
+     f5eb1f2 rewrites.
+   - Fix: `face ? SGRSideMargin : MAX(SGRSideMargin, minX(Spotify's own title))`.
+   - Evidence: `harness/library` in `plain-avatar` mode (a profile button outside the face container)
+     crashed the harness at HEAD on its own assertion, `Library title must not cover face`; it passes
+     now, and the normal path is unchanged (title at 16, avatar at 346–394 of 402). `3076169` is the
+     commit whose behaviour this restores.
+2. **Repeat glyph never showing, Spotify's icon coming back on tap** (`Redesigned/Player/PlayerControls.x`)
+   - Root cause: the mode glyphs were added to `button.subviews.firstObject`. On the repeat button that
+     is the icon view, which the same pass makes transparent, so the Music App glyph was drawn at alpha 0
+     and never seen; when Spotify rebuilt its icon on the tap, Spotify's was all that was left.
+   - Fix: `modeGlyph` puts the glyph on the button itself, above everything Spotify draws there, and
+     every other subview of that button goes transparent each pass; a 0.3s pass after a state change
+     covers a rebuild that lands after the next turn.
+   - Evidence: the recorded tree has both mode buttons as EncoreButtons that are UIButtons
+     (`Shared/Haptics/ControlHaptics.x` note, tree :247 and :290), so a subview of one can go
+     transparent without costing a touch. The player harness does not build this file: device only.
+3. **Add, ban (X) and ⋯ overlapping in a Radio Mix** (`Redesigned/Player/PlayerHeader.x`)
+   - Root cause: with Music app top bar on, the mod's ⋯ pill takes the information row's trailing 36pt,
+     and the room was taken one control at a time — anything past `rightEdge - 34` moved. A radio or a
+     mix adds a 24pt ban button beside the add button; the add moved 36pt left and the ban did not. The
+     screenshot measures to exactly that: add at 288–312pt and ban at 279–303pt of 375, 15pt of overlap.
+   - Fix: `makeRoomForPill` finds the rightmost button in the pill's way, then moves every button of
+     that row (same vertical band) by the same 36pt, so the pair keep their spacing. A row of one
+     behaves as before.
+   - Trade-off, deliberate: a long title in that state now has 36pt less room before the buttons.
+4. **Lyrics running under the player controls on iPad** (`Redesigned/Player/PlayerLyrics.x`)
+   - Root cause: a track change rebuilds the units' views, and the pass that runs before those have
+     laid out measures a player with no cover to measure. `replace()` returned there, leaving the stage
+     at the height the controls gave up while the lines were alone and the rebuilt controls drawn back
+     over it, with no further pass coming on an idle screen.
+   - Fix: `clipStageAboveControls` masks the stage at the progress bar's top whenever the controls are
+     visible — no mask while the lines are alone (controls faded) or in the beside-cover layout, where
+     the lines have room of their own — and `replace()` asks for another pass (bounded at 20, like
+     `PlayerFooter.x`'s Connect look-again) and logs what the failed measurement saw.
+   - Evidence: the screenshot's credit line sits at the very bottom of the screen, which the karaoke
+     view only does when its stage reaches the safe area's bottom; no harness builds this file, so the
+     device and that new log line are the check.
+
+Toolchain: `make release` now runs end to end on this Mac. Homebrew had no packages at all, so
+`gmake`, `ldid` and `dpkg-deb` were installed for it (`arch -arm64 brew install make ldid dpkg` — the
+shell here runs under Rosetta, and plain `brew` refuses to install in `/opt/homebrew` from it). The
+IPA is fakesigned only (`cyan -s`); the owner sideloads it, and their signer must re-sign the Live
+Activity and Safari `.appex` inside.
+
+Next: sideload the section 4 IPA and check the four on device in the **redesigned look on iOS 26** —
+Library tab title clear of the avatar; the repeat glyph holding through off → all → one with Music app
+icons on; add and X spaced apart in a Mix or Radio with Music app top bar on; and on iPad in
+landscape, lyrics stopping above the progress bar once the controls are back.

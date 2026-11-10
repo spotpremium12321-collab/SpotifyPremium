@@ -37,7 +37,7 @@ never import each other. `scripts/check-layers.sh` fails a build that breaks it.
 | [headers.md](reference/headers.md) | `Headers/` | Spotify runtime headers the tweak calls |
 | [diagnostics.md](reference/diagnostics.md) | `Diagnostics/` | the `[spotifyglass]` log and view-tree dumps |
 
-`core.md` = 22 notes, `settings.md` = 38, `shared.md` = 408, `native.md` = 89, `redesign.md` = 523,
+`core.md` = 22 notes, `settings.md` = 38, `shared.md` = 408, `native.md` = 89, `redesign.md` = 526,
 `app.md` = 36, `headers.md` = 5, `diagnostics.md` = 7.
 
 ## Things the notes keep repeating
@@ -52,6 +52,16 @@ never import each other. `scripts/check-layers.sh` fails a build that breaks it.
 - **The redesign needs iOS 26.** `SGRedesignAvailable()` holds it there: below 26 both
   `SGRedesignedUI()` and `SGRedesignedUIStored()` answer NO whatever is stored.
 - **Switches are read at launch** — a settings change needs an app restart.
+- **The mod's views sit over Spotify's, never inside the ones it hides.** A glyph added to a mode
+  button's content view — or to the icon view the same pass vanishes — goes transparent with it and is
+  never seen at all (`Redesigned/Player/PlayerControls.x`); on the button itself it outlives the pass
+  that rebuilds the button's content.
+- **A move is worked out from where the thing stands on that pass, and a row moves together.** A
+  threshold (`maxX > rightEdge - 34`) splits a row of two: the add button moved and the 24pt ban button
+  beside it did not, and the two landed on each other (`Redesigned/Player/PlayerHeader.x`).
+- **A pass that cannot measure the player asks for another one.** A new track rebuilds the units' views,
+  and the pass that runs before those have laid out measures nothing; geometry left from the last track
+  is the lyrics' stage over the controls (`Redesigned/Player/PlayerLyrics.x`).
 - **Traps** (also in `AGENTS.md`): push onto Spotify's nav stack only via a `SPTPageController`; never
   set `hidden` inside an `OverflowStackView`/Encore stack (use alpha); a 60 Hz `CADisplayLink` drags
   the player's 120 Hz down; glass outside Spotify's nav stacks inherits the system appearance, so set
