@@ -512,3 +512,13 @@ switch at playback start.
 Next: run the five checks in the doc with the owner's build. The decisive one is check 4 — Spotify's own
 crossfade at 12 s with AutoMix off — which says whether the preference path the mod writes is the one
 playback reads at all.
+
+Device result, same day: with AutoMix **off** and Spotify's own crossfade at 12 s, tracks still played one
+after another with no overlap — the crossfade is dead upstream of AutoMix. The mod had been forcing
+`use_playback_settings_crossfade` to NO in the ios-feature-settings scope (9.1.90 also has a
+`playback-settings` scope of the same name, and a playback-settings store holding `enable_crossfade` and
+`crossfade_duration_ms`), so that rule is now forced YES in both scopes, and the AutoMix page has a
+**Spotify's config** row reading the server's crossfade/automix/gapless lines out of
+`Caches/spoti.pw/AdBlock/live-config.txt`, written before any patching. Next: retest Spotify's own crossfade
+with AutoMix off; if it still does not crossfade, that row says whether the server gates it, and the store's
+own `enable_crossfade` is the next thing to reach (see the doc).

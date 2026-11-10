@@ -109,7 +109,11 @@ static const SGRule rules[] = {
     // Premium account's sets both off (compared on 2026-10-09: the other core-ads values are the same for both).
     {"core-ads", "enable_state_fetch_system", SGRuleForce, NO, NULL},
     {"core-ad-detection", "use_ad_placements_beta", SGRuleForce, NO, NULL},
-    {"ios-feature-settings", "use_playback_settings_crossfade", SGRuleForce, NO, NULL},
+    // Both scopes on: the settings the player reads crossfade from, and the flag that says to read them. Forced off
+    // before, which is a silent crossfade on a build that honours it (device report, 2026-11-10: Spotify's own
+    // crossfade at 12 s did nothing with AutoMix off, and AutoMix's fallback is that same preference).
+    {"ios-feature-settings", "use_playback_settings_crossfade", SGRuleForce, YES, NULL},
+    {"playback-settings", "use_playback_settings_crossfade", SGRuleForce, YES, NULL},
     {"ios-feature-settings", "use_playback_settings_gapless", SGRuleForce, NO, NULL},
     {NULL, "enable_common_capping", SGRuleRemove, NO, NULL},
     {NULL, "enable_pns_common_capping", SGRuleRemove, NO, NULL},
