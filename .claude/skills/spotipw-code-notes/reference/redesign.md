@@ -2715,6 +2715,13 @@
 > Spotify rebuilds that icon after the state that changed the mode has gone out; the watcher's next turn,
 > and its 0.3s pass for a rebuild that lands later, hide it again. The button is the control (both are in
 > ControlHaptics.x by identifier), so a subview of it going transparent costs no touches.
+>
+> A vanish was not enough for the repeat: the modes change its icon's shape, so the tap has Spotify showing
+> an icon again -- an alpha set on a view already there undoes a plain vanish -- and the glyph came back with
+> Spotify's under it (device report, 2026-11-09: "not as bad as before"). The subviews are SGRSuppress'd, the
+> way the play button's disc is: a suppressed instance keeps alpha 0 whatever is set on it, so the icon cannot
+> come back between passes. The one-shot log line names the button's class and what it draws, so a remaining
+> dot or badge is identified from `make log` rather than guessed at.
 
 **`static const NSTimeInterval kTapTrust = 1.2;`** (was L27)
 > After a tap the glyph shows what the tap asked for, and a state still saying the opposite is taken for

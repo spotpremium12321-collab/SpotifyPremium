@@ -189,8 +189,21 @@ static void playGlyph(UIView *host) {
 static void modeGlyph(UIView *button, NSString *symbol, BOOL on) {
     SGRGlyphView *glyph = glyphFor(button, symbol, 20);
     [glyph setSymbol:symbol animated:NO];
+    static NSMutableSet<NSString *> *logged;
+    if (!logged) logged = [NSMutableSet set];
+    NSString *identifier = button.accessibilityIdentifier;
+    if (![logged containsObject:identifier]) {
+        [logged addObject:identifier];
+        NSMutableArray<NSString *> *drawn = [NSMutableArray array];
+        for (UIView *sub in button.subviews) {
+            if (sub != glyph) [drawn addObject:NSStringFromClass(sub.class)];
+        }
+        SGLog(@"redesign player: %@ is %@, drawing %@", identifier, NSStringFromClass(button.class), [drawn componentsJoinedByString:@", "]);
+    }
+    // Suppressed, not only transparent: a tap has Spotify showing the icon it already has again, by setting
+    // alpha on the view, which undid the vanish. A suppressed subview keeps alpha 0 whatever is set on it.
     for (UIView *sub in button.subviews) {
-        if (sub != glyph) SGRPlayerVanish(sub);
+        if (sub != glyph) SGRSuppress(sub);
     }
     glyph.tintColor = on ? (SGRAccentColor() ?: SGRPrimary()) : SGRPrimary();
     keepOnTop(glyph, button);
