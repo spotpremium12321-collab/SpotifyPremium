@@ -2435,3 +2435,16 @@
 **`SPTPlayerState *state = NSThread.isMainThread ? SGPlayerState() : nil;`** (was L52)
 > PlayerState is main-thread data. Off-main reports are corrected by the controller's next
 > clock publication; never read its Objective-C ownership from an audio/player callback.
+
+## `Shared/AutoMix/AutoMixModel.m`
+
+**playbackFlags / SGAutoMixConfiguration**
+> AutoMix writes the legacy audioCrossfade/audioCrossfadeTime preferences. Both
+> ios-feature-settings.use_playback_settings_crossfade and
+> playback-settings.use_playback_settings_crossfade must be false while it runs;
+> true selects a separate store that is only migrated once. The first flag is read
+> by SPTAudioPlayback_PropertiesImplProperties, so it does more than draw a settings
+> row. Use the same map for provider overrides and the final core configuration,
+> retaining true crossfade_enabled/automix_enabled gates. See
+> docs/AUTOMIX-2026-11-10.md for binary addresses and verification limits. A passing
+> model test or a displayed mix window does not prove an audible transition.
