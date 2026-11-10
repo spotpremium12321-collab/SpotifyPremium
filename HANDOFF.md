@@ -486,3 +486,29 @@ landscape, lyrics stopping above the progress bar once the controls are back.
 - Not yet seen on device: the library avatar fix and the iPad lyrics clip (fixes 1 and 4), and whether
   suppressing the mode button's subviews costs the repeat or shuffle taps — both buttons are the
   controls themselves per the recorded tree, so it should not.
+
+## 10. AutoMix Not Working — Deep Dive (November 10, 2026)
+
+The report was "automix isnt working". Both AutoMix harnesses pass
+(`harness/automix/build.sh`, `harness/automix/hooks-build.sh`), and everything the code names was
+checked against the 9.1.90 binary and is there — the preferences class and its six selectors, the
+player and client classes and the five play selectors they hook, the config scopes, the automix
+metadata keys, `regular` as a real `automix.mode` value, and the millisecond crossfade length. The
+policy is not the fault, so the fault is a dead link on the phone; the full chain, the gates on each
+link and the checks that name the dead one are in `docs/AUTOMIX-2026-11-10.md`.
+
+The one code change: `SGAutoMixCopyContext` / `SGAutoMixCopyRequest` log the request side once per
+context and reason — `automix: <uri> asked for a transition`, or `cannot ask for a transition, <why>`.
+Nothing reported that before, and it separates "the request never went" from "the backend gave no plan".
+
+Ranked suspects, with the device signature: the preferences object never captured
+(`Waiting for Spotify's playback preferences`), most likely because 9.1.90 carries the crossfade
+migration to the playback-settings store (`audio.crossfade_migrated_to_ps`,
+`playback-settings.use_playback_settings_crossfade`, `crossfade_duration_ms`) and may no longer read
+the legacy getters the mod watches; the backend declining a plan (correct behaviour, the crossfade
+fallback then only sounds if the legacy preference path is alive); and a fade engine that caches the
+switch at playback start.
+
+Next: run the five checks in the doc with the owner's build. The decisive one is check 4 — Spotify's own
+crossfade at 12 s with AutoMix off — which says whether the preference path the mod writes is the one
+playback reads at all.
