@@ -324,6 +324,9 @@ static UIViewController *modSettingsPage(void) {
     ambient.value = ^NSString *{ return SGAmbientSummary(); };
     ambient.refreshOn = SGAmbientDidChangeNotification;
     // Web Jam also lives under Premium, ads & privacy → Jam; the root row makes the browser queue findable.
+    SGModRow *autoMix = pageRow(@"AutoMix", @"waveform.path", ^UIViewController *{ return SGAutoMixSettingsPage(); });
+    autoMix.value = ^NSString *{ return SGFlag(SGKeyAutoMix, NO) ? SGAutoMixStatus() : @"Off"; };
+    autoMix.refreshOn = SGAutoMixStatusDidChangeNotification;
     SGModRow *webJam = pageRow(@"Web Jam", @"globe", ^UIViewController *{ return SGWebJamPage(); });
     webJam.value = ^NSString *{ return SGWebJamStatus(); };
     webJam.refreshOn = SGWebJamDidChangeNotification;
@@ -337,7 +340,7 @@ static UIViewController *modSettingsPage(void) {
         pageRow(@"Lock Screen", @"lock.iphone", ^UIViewController *{ return SGLockScreenSettingsPage(); }),
         audioEffects,
         ambient,
-        pageRow(@"AutoMix", @"waveform.path", ^UIViewController *{ return SGAutoMixSettingsPage(); }),
+        autoMix,
         webJam,
         pageRow(@"Vibrations", @"iphone.radiowaves.left.and.right", ^UIViewController *{ return SGVibrationsSettingsPage(); }),
     ]];
