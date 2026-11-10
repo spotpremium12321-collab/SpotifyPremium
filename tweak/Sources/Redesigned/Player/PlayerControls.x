@@ -183,6 +183,19 @@ static void playGlyph(UIView *host) {
     dispatch_once(&once, ^{ SGLog(@"redesign player: play glyph over %@ (disc %@ suppressed), spinner %@", NSStringFromClass(play.class), NSStringFromClass(disc.class), spinnerShowing(button) ? @"showing" : @"hidden"); });
 }
 
+// A mode button's glyph, and Spotify's own icon gone whatever shape it takes this pass. Both buttons are
+// UIButtons that draw their icon in a subview, and the one the repeat button has is rebuilt with the mode, so
+// the glyph goes on the button itself: a glyph put in the icon's view went invisible with it.
+static void modeGlyph(UIView *button, NSString *symbol, BOOL on) {
+    SGRGlyphView *glyph = glyphFor(button, symbol, 20);
+    [glyph setSymbol:symbol animated:NO];
+    for (UIView *sub in button.subviews) {
+        if (sub != glyph) SGRPlayerVanish(sub);
+    }
+    glyph.tintColor = on ? (SGRAccentColor() ?: SGRPrimary()) : SGRPrimary();
+    keepOnTop(glyph, button);
+}
+
 static void modeButtons(UIView *host) {
     UIView *shuffle = SGRFindByIdentifier(host, @"NowPlaying-ShuffleButton", &kShuffleKey);
     if (!shuffle) shuffle = SGRFindByIdentifier(host, @"SPTNowPlayingShuffleButton", &kShuffleKey);
@@ -190,16 +203,8 @@ static void modeButtons(UIView *host) {
         if (SGHidden(SGRKeyPlayerHideShuffle)) {
             SGRPlayerVanish(shuffle);
         } else if (SGRPlayerMusicIconsOn()) {
-            UIView *content = shuffle.subviews.firstObject ?: shuffle;
-            SGRGlyphView *glyph = glyphFor(shuffle, @"shuffle", 20);
-            SGForEachView(content, ^(UIView *view) {
-                if (view != glyph && ([view isKindOfClass:UIImageView.class] || [NSStringFromClass(view.class) containsString:@"IconView"])) {
-                    SGRPlayerVanish(view);
-                }
-            });
             BOOL on = SGPlayerState().options.shufflingContext || [shuffle.accessibilityValue.lowercaseString containsString:@"on"];
-            glyph.tintColor = on ? (SGRAccentColor() ?: SGRPrimary()) : SGRPrimary();
-            keepOnTop(glyph, content);
+            modeGlyph(shuffle, @"shuffle", on);
         }
     }
 
@@ -208,20 +213,10 @@ static void modeButtons(UIView *host) {
         if (SGHidden(SGRKeyPlayerHideRepeat)) {
             SGRPlayerVanish(repeat);
         } else if (SGRPlayerMusicIconsOn()) {
-            UIView *content = repeat.subviews.firstObject ?: repeat;
             SPTPlayerOptions *opts = SGPlayerState().options;
             BOOL trackRepeat = opts.repeatingTrack || [repeat.accessibilityValue.lowercaseString containsString:@"one"] || [repeat.accessibilityValue containsString:@"1"];
             BOOL anyRepeat = trackRepeat || opts.repeatingContext || [repeat.accessibilityValue.lowercaseString containsString:@"on"] || [repeat.accessibilityValue.lowercaseString containsString:@"context"];
-            NSString *sym = trackRepeat ? @"repeat.1" : @"repeat";
-            SGRGlyphView *glyph = glyphFor(repeat, sym, 20);
-            [glyph setSymbol:sym animated:NO];
-            SGForEachView(repeat, ^(UIView *view) {
-                if (view != glyph && ([view isKindOfClass:UIImageView.class] || [NSStringFromClass(view.class) containsString:@"IconView"])) {
-                    SGRPlayerVanish(view);
-                }
-            });
-            glyph.tintColor = anyRepeat ? (SGRAccentColor() ?: SGRPrimary()) : SGRPrimary();
-            keepOnTop(glyph, content);
+            modeGlyph(repeat, trackRepeat ? @"repeat.1" : @"repeat", anyRepeat);
         }
     }
 }
@@ -252,8 +247,13 @@ static void modeButtons(UIView *host) {
     UIView *host = sg_controlsHost;
     if (host && SGRPlayerMusicIconsOn()) {
         modeButtons(host);
-        // Spotify replaces the repeat icon after publishing the state that asked for it.
+        // Spotify replaces the repeat icon after publishing the state that asked for it: once on the next turn,
+        // where the row has laid out, and once after the button has rebuilt its own icon over the glyph.
         dispatch_async(dispatch_get_main_queue(), ^{
+            if (sg_controlsHost == host) modeButtons(host);
+        });
+        // shortcut: one fixed wait for that rebuild; upgrade to watching the button if its timing moves.
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             if (sg_controlsHost == host) modeButtons(host);
         });
     }
