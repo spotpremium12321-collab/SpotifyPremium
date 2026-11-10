@@ -202,6 +202,33 @@ static void pillBehindContext(UIViewController *unit) {
 }
 %end
 
+// Room for the pill: the buttons of the row it stands in move together. Worked out one at a time by where each
+// stands, the add button was shifted and the ban button a radio or a mix puts beside it -- not past the
+// threshold itself -- was left behind, and the two landed on each other.
+static void makeRoomForPill(UIView *host, UIView *more, CGFloat rightEdge) {
+    __block UIView *inTheWay = nil;
+    __block CGFloat rightmost = 0;
+    SGForEachView(host, ^(UIView *view) {
+        if (view == more || view.superview == more) return;
+        if (![view isKindOfClass:UIControl.class] || view.bounds.size.width > 56) return;
+        CGRect inHost = [view convertRect:view.bounds toView:host];
+        if (CGRectGetMaxX(inHost) <= rightEdge - 34 || CGRectGetMaxX(inHost) <= rightmost) return;
+        inTheWay = view;
+        rightmost = CGRectGetMaxX(inHost);
+    });
+    if (!inTheWay) return;
+    CGFloat rowMiddle = CGRectGetMidY([inTheWay convertRect:inTheWay.bounds toView:host]);
+    CGAffineTransform shift = CGAffineTransformMakeTranslation(-36, 0);
+    SGForEachView(host, ^(UIView *view) {
+        if (view == more || view.superview == more) return;
+        if (![view isKindOfClass:UIControl.class] || view.bounds.size.width > 56) return;
+        CGRect inHost = [view convertRect:view.bounds toView:host];
+        if (fabs(CGRectGetMidY(inHost) - rowMiddle) > 20) return;
+        UIView *moved = view.superview && view.superview != host && view.superview.bounds.size.width <= 60 ? view.superview : view;
+        if (!CGAffineTransformEqualToTransform(moved.transform, shift)) moved.transform = shift;
+    });
+}
+
 %hook _TtC20NowPlaying_ModesImpl23InformationElementsUnit
 - (void)viewDidLayoutSubviews {
     %orig;
@@ -216,15 +243,7 @@ static void pillBehindContext(UIViewController *unit) {
     if (more.superview != host) [host addSubview:more];
     CGFloat rightEdge = host.bounds.size.width - 24;
     more.frame = CGRectMake(rightEdge - 28, round((host.bounds.size.height - 28) / 2), 28, 28);
-    SGForEachView(host, ^(UIView *view) {
-        if (view == more || view.superview == more || ![view isKindOfClass:UIControl.class]) return;
-        CGRect inHost = [view convertRect:view.bounds toView:host];
-        if (CGRectGetMaxX(inHost) > rightEdge - 34 && view.bounds.size.width <= 56) {
-            UIView *moved = view.superview && view.superview != host && view.superview.bounds.size.width <= 60 ? view.superview : view;
-            CGAffineTransform shift = CGAffineTransformMakeTranslation(-36, 0);
-            if (!CGAffineTransformEqualToTransform(moved.transform, shift)) moved.transform = shift;
-        }
-    });
+    makeRoomForPill(host, more, rightEdge);
 }
 %end
 
