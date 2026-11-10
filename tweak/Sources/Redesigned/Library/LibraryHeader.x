@@ -146,7 +146,9 @@ static NSArray<UIView *> *placeRoot(UIView *header) {
     if (face && SGFlag(SGRKeyNavbarProfilePhoto, YES)) [trailing addObject:face];
     CGFloat trailingEdge = trailing.count ? placeTrailing(header, trailing) : header.bounds.size.width - kRowInset;
     CGRect rowFrame = SGFrameIn(trailing.firstObject ?: spotifyTitle, header);
-    layoutTitle(header, spotifyTitle, SGRSideMargin, trailingEdge, CGRectGetMidY(rowFrame));
+    // The avatar is only ours to move once it is found; Spotify's own title holds its place until then.
+    CGFloat leading = face ? SGRSideMargin : MAX(SGRSideMargin, CGRectGetMinX(SGFrameIn(spotifyTitle, header)));
+    layoutTitle(header, spotifyTitle, leading, trailingEdge, CGRectGetMidY(rowFrame));
     for (UIView *control in trailing) watchRow(control.superview, header, placeRoot);
     return trailing;
 }
