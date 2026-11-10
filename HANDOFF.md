@@ -146,7 +146,7 @@ the owner sideloads this one.
 |---|---|---|
 | **Compiled Tweak DEB** | `tweak/packages/com.spotipw_0.60.5_iphoneos-arm.deb` | Built & signed |
 | **Downloads Verification** | Injected `SpotifyAudioProbe.dylib` | 100% Verified passed |
-| **Latest Release IPA — Device Bug Round** | `out/Taurus-0.60.5.ipa` (132 MB, SHA-256: `5d46807a59c613121fbd29235028fd478ddae311a9d479f4d8e29d8dadf65491`, sidecar `.sha256` beside it) | Full pipeline exit 0: Downloads patch verified, tweak + Live Activity + Safari + App Group shim injected, alternate icons, App Intents, finished-IPA Downloads verification passed; fakesigned only, the owner sideloads it and its signer must re-sign the two embedded `.appex` |
+| **Latest Release IPA — Device Bug Round** | `out/Taurus-0.60.5.ipa` (138,046,771 bytes, SHA-256: `d0fa5f8cf27c27c3955de4e6a42ec28dc879c08cac2d84845ac7f00773c17a5f`, sidecar `.sha256` beside it) | Full pipeline exit 0: Downloads patch verified, tweak + Live Activity + Safari + App Group shim injected, alternate icons, App Intents, finished-IPA Downloads verification passed; fakesigned only, the owner sideloads it and its signer must re-sign the two embedded `.appex` |
 | **Previous Release IPA — Lyrics Shaders** | `out/Taurus-0.60.5-LyricsShaders-20261107-205155-AF5B87A8.ipa` (138,043,022 bytes, SHA-256: `cb56a6d53c8f0ec4a3638ceb8710b6d653023fd22b081a9a8a1c169319860f2b`) | Archive integrity and embedded shader renderer verified; no FLEX; requires signing for device installation |
 | **Previous Release IPA — Lyrics Shader Performance** | `out/Taurus-0.60.5-LyricsShaders-Performance-20261107-235915-0F1FD8E7.ipa` (138,044,821 bytes, SHA-256: `b29fe80e0757effdcd4a8a1636f99297886382f0abd40b78f5f5ecff28b21c9c`) | ZIP integrity, production renderer markers, test-hook exclusion and no FLEX verified; requires signing for device installation |
 | **Previous Release IPA — Lyrics Shader Glow Fix** | `out/Taurus-0.60.5-LyricsShader-GlowFix-20261108-042228-0E7CCC67.ipa` (138,047,928 bytes, SHA-256: `65795ecdc1a70d3fd287d13abf784ee6f5a96deca02eb63020603123e572861f`) | ZIP integrity, embedded glyph-outline code, no test hooks and no FLEX verified; requires signing for installation |
@@ -469,3 +469,20 @@ Next: sideload the section 4 IPA and check the four on device in the **redesigne
 Library tab title clear of the avatar; the repeat glyph holding through off → all → one with Music app
 icons on; add and X spaced apart in a Mix or Radio with Music app top bar on; and on iPad in
 landscape, lyrics stopping above the progress bar once the controls are back.
+
+### First device results (November 9, 2026, later)
+
+- **Radio Mix row (fix 3): cleared.** The owner saw it once right after installing and not again
+  after a relaunch or two. That is the process, not the fix: a tweak only loads at launch, so the
+  first run after an install is still the previous dylib in the resumed process, and the old build's
+  per-button shift was still in the views. Keep saying "quit Spotify, then open it" after an install.
+- **Repeat glyph (fix 2): still showed Spotify's icon under ours on the tap, "not as bad as before"**
+  — the glyph was there, the icon came back. Spotify shows the icon view it already has again by
+  setting alpha, which undid a plain vanish, and only the repeat's icon changes shape with the mode,
+  which is why the shuffle never showed it. `modeGlyph` now `SGRSuppress`es the button's subviews (the
+  tool the play button's disc uses) so they keep alpha 0 whatever Spotify sets, and logs once, for the
+  owner's `make log`, the button's class and the classes it draws. Commit `69e4274`; the section 4 IPA
+  is the rebuild with it.
+- Not yet seen on device: the library avatar fix and the iPad lyrics clip (fixes 1 and 4), and whether
+  suppressing the mode button's subviews costs the repeat or shuffle taps — both buttons are the
+  controls themselves per the recorded tree, so it should not.
